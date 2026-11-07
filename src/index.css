@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    font-family: 'Hind Siliguri', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #120103;
+    color: #ffffff;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: pan-y;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
+}
+
+.font-num {
+  font-family: 'Rajdhani', 'Inter', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #140203;
+}
+::-webkit-scrollbar-thumb {
+  background: #5c0f16;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #961924;
+}
+
+/* Metallic & Beveled Frames */
+.gold-card-frame {
+  background: linear-gradient(180deg, #2e0509 0%, #1c0305 60%, #120103 100%);
+  border: 1px solid #5a0c13;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 215, 0, 0.15);
+}
+
+.gold-card-frame:hover {
+  border-color: rgba(255, 200, 50, 0.6);
+  box-shadow: 0 6px 20px rgba(180, 20, 30, 0.35), inset 0 1px 0 rgba(255, 215, 0, 0.3);
+}
+
+.gold-medallion {
+  background: radial-gradient(circle at 35% 35%, #fff199 0%, #ffc83b 40%, #c48b0a 80%, #7d5402 100%);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+.red-medallion {
+  background: radial-gradient(circle at 35% 35%, #ff6b78 0%, #d91424 50%, #870611 100%);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.gold-border-glow {
+  border: 1px solid #d49511;
+  box-shadow: 0 0 12px rgba(255, 200, 0, 0.25);
+}
+
+/* Marquee animation */
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee 25s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Vertical winners ticker animation - scrolls serially from bottom to top */
+@keyframes verticalTicker {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+.animate-vertical-ticker {
+  animation: verticalTicker 22s linear infinite;
+}
+
+.animate-vertical-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* 4-dot indicator glow */
+.dot-glow {
+  box-shadow: 0 0 4px rgba(255, 40, 60, 0.8);
+}

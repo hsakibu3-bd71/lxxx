@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="HandheldFriendly" content="true" />
+    <meta name="theme-color" content="#140203" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LivexWin" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/assets/aistudio/nagad_nobg.png" />
+    <title>LivexWin - Live Casino, Slots, Fishing & Gaming</title>
+    <meta name="description" content="LivexWin - Premier Online Casino & Gaming Platform. Jili, PG Soft, Live Casino, Slots, Fishing & Cards with fast BDT deposits & withdrawals." />
+    <meta property="og:title" content="LivexWin - Live Casino, Slots, Fishing & Gaming" />
+    <meta property="og:description" content="LivexWin - Premier Online Casino & Gaming Platform with fast BDT deposits & withdrawals." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Rajdhani:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#140203] text-white antialiased selection:bg-[#ffb703] selection:text-black" oncontextmenu="return false;">
+    <div id="root"></div>
+
+    <!-- Security & Anti-Inspection Guard (Source code protection & anti-zoom) -->
+    <script>
+      (function() {
+        // 1. Prevent Right-Click Context Menu
+        document.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+          return false;
+        }, { capture: true });
+
+        // 2. Prevent Keyboard Source Code Inspection Shortcuts
+        document.addEventListener('keydown', function(e) {
+          // F12
+          if (e.key === 'F12' || e.keyCode === 123) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+          // Ctrl+U or Cmd+U (View Source)
+          if ((e.ctrlKey || e.metaKey) && (e.key === 'u' || e.key === 'U' || e.keyCode === 85)) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+          // Ctrl+Shift+I / J / C (DevTools & Console)
+          if ((e.ctrlKey || e.metaKey) && e.shiftKey && (
+            e.key === 'I' || e.key === 'i' || e.keyCode === 73 ||
+            e.key === 'J' || e.key === 'j' || e.keyCode === 74 ||
+            e.key === 'C' || e.key === 'c' || e.keyCode === 67
+          )) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+          // Ctrl+S / Cmd+S (Save Page)
+          if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S' || e.keyCode === 83)) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+          // Ctrl+P / Cmd+P (Print Page)
+          if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P' || e.keyCode === 80)) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+        }, { capture: true });
+
+        // 3. Prevent Mobile Pinch-to-Zoom & Double-Tap Zoom
+        document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
+        document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
+        document.addEventListener('gestureend', function(e) { e.preventDefault(); }, { passive: false });
+
+        var lastTouchEnd = 0;
+        document.addEventListener('touchend', function(e) {
+          var now = (new Date()).getTime();
+          if (now - lastTouchEnd <= 300) {
+            e.preventDefault();
+          }
+          lastTouchEnd = now;
+        }, false);
+
+        document.addEventListener('touchmove', function(e) {
+          if (e.touches.length > 1) {
+            e.preventDefault();
+          }
+        }, { passive: false });
+
+        // 4. Console Protection Notice
+        try {
+          console.log('%cLivexWin Security Protection Active', 'color: #f59e0b; font-size: 16px; font-weight: bold;');
+          console.log('%cProprietary & Confidential - Unauthorized code inspection or reproduction is strictly prohibited.', 'color: #ef4444; font-size: 11px;');
+        } catch(err) {}
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
