@@ -1,5 +1,12 @@
 import { UserProfile, Transaction, BetRecord, ProviderConfig, SiteSettings, GameItem, SiteAssets, PromoSlideItem, CategoryCardItem, PaymentMethodAsset } from '../types';
 import { GAME_CATALOG } from '../data/games';
+import {
+  ensureFirestoreUserDoc,
+  atomicRecordTransactionFirestore,
+  upsertGameCatalogFirestore,
+  deleteGameCatalogFirestore,
+  signOutFirebase,
+} from '../lib/firebase';
 
 const STORAGE_KEYS = {
   CURRENT_USER_ID: 'livexwin_current_user_id',
@@ -564,12 +571,15 @@ class StorageService {
       if (storedTx) {
         this.transactions = JSON.parse(storedTx);
       } else {
-        // Sample initial transactions
+        // Sample initial transactions for default player usr_t1206248521
         this.transactions = [
           {
             id: 'TXN-9827361',
+            userId: 'usr_t1206248521',
+            username: 't1206248521',
             type: 'deposit',
             amount: 500,
+            balanceAfter: 500,
             status: 'completed',
             method: 'nagad',
             channel: 'TKPAYBDT',
@@ -579,8 +589,11 @@ class StorageService {
           },
           {
             id: 'TXN-9827362',
+            userId: 'usr_t1206248521',
+            username: 't1206248521',
             type: 'bonus',
             amount: 60,
+            balanceAfter: 60,
             status: 'completed',
             note: 'রেজিস্ট্রেশন রিওয়ার্ড বোনাস',
             createdAt: '2026-11-06 14:21',
@@ -646,7 +659,21 @@ class StorageService {
 
       const storedGames = localStorage.getItem(STORAGE_KEYS.GAME_CATALOG_OVERRIDE);
       if (storedGames) {
-        this.games = JSON.parse(storedGames);
+        try {
+          const parsedGames = JSON.parse(storedGames) as GameItem[];
+          const mergedGames = [...GAME_CATALOG];
+          parsedGames.forEach(pg => {
+            const idx = mergedGames.findIndex(m => m.id === pg.id);
+            if (idx >= 0) {
+              mergedGames[idx] = { ...mergedGames[idx], ...pg };
+            } else {
+              mergedGames.push(pg);
+            }
+          });
+          this.games = mergedGames;
+        } catch {
+          this.games = GAME_CATALOG;
+        }
       } else {
         this.games = GAME_CATALOG;
         this.saveGames();
@@ -702,6 +729,7 @@ class StorageService {
   logout(): void {
     this.currentUserId = '';
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, 'LOGGED_OUT');
+    void signOutFirebase();
   }
 
   getAllUsers(): UserProfile[] {
@@ -771,13 +799,20 @@ class StorageService {
     return { success: true, message: 'লগইন সফল হয়েছে!', user };
   }
 
-  loginWithGoogle(email: string, name?: string, avatar?: string): { success: boolean; message: string; user: UserProfile } {
-    let user = this.users.find(u => u.phone === email || u.username === email || u.username.toLowerCase().includes('sakib'));
+  loginWithGoogle(email: string, name?: string, avatar?: string, firebaseUid?: string): { success: boolean; message: string; user: UserProfile } {
+    const isSuperAdminEmail = email.toLowerCase() === 'sakibhasanu3@gmail.com';
+    let user = this.users.find(
+      u =>
+        (firebaseUid && u.id === firebaseUid) ||
+        u.phone === email ||
+        u.username === email ||
+        (isSuperAdminEmail && u.role === 'admin')
+    );
     if (!user) {
       const cleanUsername = (email.split('@')[0] || 'google_user').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase().slice(0, 10);
       const uniqueName = cleanUsername + Math.floor(100 + Math.random() * 900);
       user = {
-        id: 'usr_g_' + Date.now(),
+        id: firebaseUid || 'usr_g_' + Date.now(),
         username: uniqueName,
         nickname: name || cleanUsername,
         phone: '017' + Math.floor(10000000 + Math.random() * 90000000),
@@ -789,7 +824,7 @@ class StorageService {
         boundWallets: [],
         trxPasswordSet: true,
         trxPassword: '123456',
-        role: 'player',
+        role: isSuperAdminEmail ? 'admin' : 'player',
         status: 'active',
         dailyCheckinClaimed: false,
         consecutiveDays: 1,
@@ -800,6 +835,7 @@ class StorageService {
       this.saveUsers();
     }
     this.setCurrentUser(user.id);
+    void ensureFirestoreUserDoc(user);
     return { success: true, message: `স্বাগতম ${user.nickname}! গুগল অ্যাকাউন্টে সফলভাবে সাইন ইন হয়েছে।`, user };
   }
 
@@ -840,18 +876,26 @@ class StorageService {
       createdAt: new Date().toLocaleString('en-GB'),
     };
 
-    // Credit balance
+    // Credit balance atomically
     user.wallet.balance = Number((user.wallet.balance + amount).toFixed(2));
     user.vipPoints += Math.floor(amount / 10);
     if (user.vipPoints >= 500 && user.vipLevel < 1) user.vipLevel = 1;
     if (user.vipPoints >= 2000 && user.vipLevel < 2) user.vipLevel = 2;
     if (user.vipPoints >= 10000 && user.vipLevel < 3) user.vipLevel = 3;
 
-    this.transactions.unshift(txn);
+    const enrichedTxn: Transaction = {
+      ...txn,
+      userId: user.id,
+      username: user.username,
+      balanceAfter: user.wallet.balance,
+    };
+
+    this.transactions.unshift(enrichedTxn);
     this.saveUsers();
     this.saveTransactions();
+    void atomicRecordTransactionFirestore(amount, enrichedTxn);
 
-    return { success: true, message: `৳ ${amount.toLocaleString()} সফলভাবে জমা হয়েছে!`, transaction: txn };
+    return { success: true, message: `৳ ${amount.toLocaleString()} সফলভাবে জমা হয়েছে!`, transaction: enrichedTxn };
   }
 
   submitWithdraw(amount: number, method: 'nagad' | 'bkash', accountNumber: string, trxPass: string): { success: boolean; message: string } {
@@ -885,8 +929,11 @@ class StorageService {
 
     const txn: Transaction = {
       id: 'WD-' + Math.floor(1000000 + Math.random() * 9000000),
+      userId: user.id,
+      username: user.username,
       type: 'withdraw',
       amount,
+      balanceAfter: user.wallet.balance,
       status: 'pending', // Pending admin approval
       method,
       accountNumber,
@@ -896,14 +943,18 @@ class StorageService {
 
     this.transactions.unshift(txn);
     this.saveTransactions();
+    void atomicRecordTransactionFirestore(-amount, txn);
 
     return { success: true, message: `উত্তোলন অনুরোধ গৃহীত হয়েছে! অ্যাডমিন অনুমোদনের পর অর্থ আপনার নম্বরে পৌঁছাবে।` };
   }
 
   recordGameBet(gameId: string, gameName: string, provider: any, betAmount: number, payoutAmount: number, multiplier: number): BetRecord {
-    const profit = payoutAmount - betAmount;
+    const user = this.getCurrentUser();
+    const profit = Number((payoutAmount - betAmount).toFixed(2));
     const record: BetRecord = {
       id: 'BET-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      userId: user?.id,
+      username: user?.username,
       gameId,
       gameName,
       provider,
@@ -916,6 +967,31 @@ class StorageService {
     this.betRecords.unshift(record);
     if (this.betRecords.length > 200) this.betRecords.pop();
     this.saveBets();
+
+    // Also record game bet/win transaction in player's transaction history
+    if (user && (betAmount > 0 || payoutAmount > 0)) {
+      const txType: Transaction['type'] = profit >= 0 ? 'win' : 'bet';
+      const txAmount = Math.abs(profit) > 0 ? Math.abs(profit) : betAmount;
+      const gameTxn: Transaction = {
+        id: 'GM-' + Math.floor(1000000 + Math.random() * 9000000),
+        userId: user.id,
+        username: user.username,
+        type: txType,
+        amount: Number(txAmount.toFixed(2)),
+        balanceAfter: user.wallet.balance,
+        status: 'completed',
+        method: String(provider),
+        note:
+          profit >= 0
+            ? `${gameName} (${provider}) গেমে জয় +৳${profit.toFixed(2)} (${multiplier}x)`
+            : `${gameName} (${provider}) গেমে বেট -৳${betAmount.toFixed(2)}`,
+        createdAt: new Date().toLocaleString('en-GB'),
+      };
+      this.transactions.unshift(gameTxn);
+      this.saveTransactions();
+      void atomicRecordTransactionFirestore(profit, gameTxn);
+    }
+
     return record;
   }
 
@@ -1054,22 +1130,41 @@ class StorageService {
   }
 
   private addTransaction(txn: Omit<Transaction, 'id' | 'createdAt'>) {
+    const user = this.getCurrentUser();
     const fullTxn: Transaction = {
       ...txn,
       id: 'TXN-' + Math.floor(1000000 + Math.random() * 9000000),
+      userId: txn.userId || user?.id,
+      username: txn.username || user?.username,
+      balanceAfter: txn.balanceAfter ?? user?.wallet.balance,
       createdAt: new Date().toLocaleString('en-GB'),
     };
     this.transactions.unshift(fullTxn);
     this.saveTransactions();
+    void atomicRecordTransactionFirestore(txn.type === 'withdraw' || txn.type === 'bet' ? -txn.amount : txn.amount, fullTxn);
   }
 
-  // --- Transactions Query ---
-  getTransactions(): Transaction[] {
-    return [...this.transactions];
+  // --- Transactions Query (Player-isolated by default; Admin sees all) ---
+  getTransactions(includeAllForAdmin = false): Transaction[] {
+    const user = this.getCurrentUser();
+    if (includeAllForAdmin || user?.role === 'admin' || user?.role === 'superadmin') {
+      return [...this.transactions];
+    }
+    if (!user) return [];
+    return this.transactions.filter(
+      t => t.userId === user.id || (!t.userId && user.id === 'usr_t1206248521')
+    );
   }
 
-  getBetRecords(): BetRecord[] {
-    return [...this.betRecords];
+  getBetRecords(includeAllForAdmin = false): BetRecord[] {
+    const user = this.getCurrentUser();
+    if (includeAllForAdmin || user?.role === 'admin' || user?.role === 'superadmin') {
+      return [...this.betRecords];
+    }
+    if (!user) return [];
+    return this.betRecords.filter(
+      b => b.userId === user.id || (!b.userId && user.id === 'usr_t1206248521')
+    );
   }
 
   // --- Admin Methods ---
@@ -1087,11 +1182,11 @@ class StorageService {
     tx.status = 'rejected';
     tx.note = (tx.note || '') + (reason ? ` (বাতিল: ${reason})` : ' (বাতিল করা হয়েছে)');
 
-    // If it was a withdrawal that got rejected, refund back to user
+    // If it was a withdrawal that got rejected, refund back to user atomically
     if (tx.type === 'withdraw') {
-      const user = this.getCurrentUser();
-      if (user) {
-        user.wallet.balance = Number((user.wallet.balance + tx.amount).toFixed(2));
+      const targetUser = this.users.find(u => u.id === tx.userId) || this.getCurrentUser();
+      if (targetUser) {
+        targetUser.wallet.balance = Number((targetUser.wallet.balance + tx.amount).toFixed(2));
         this.saveUsers();
       }
     }
@@ -1103,10 +1198,13 @@ class StorageService {
   adminAdjustUserBalance(userId: string, delta: number, note: string): boolean {
     const user = this.users.find(u => u.id === userId);
     if (!user) return false;
-    user.wallet.balance = Number((user.wallet.balance + delta).toFixed(2));
+    user.wallet.balance = Math.max(0, Number((user.wallet.balance + delta).toFixed(2)));
     this.saveUsers();
 
     this.addTransaction({
+      userId: user.id,
+      username: user.username,
+      balanceAfter: user.wallet.balance,
       type: delta >= 0 ? 'bonus' : 'withdraw',
       amount: Math.abs(delta),
       status: 'completed',
@@ -1160,12 +1258,139 @@ class StorageService {
     return [...this.games];
   }
 
+  addGame(gameData: Omit<GameItem, 'id'> & { id?: string }): GameItem {
+    const cleanId =
+      (gameData.id || `${gameData.provider}-${gameData.name}`)
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 80) +
+      '-' +
+      Math.floor(100 + Math.random() * 900);
+
+    const newGame: GameItem = {
+      ...gameData,
+      id: cleanId,
+      demoLink:
+        gameData.demoLink ||
+        `/game_frame.php?gameid=${encodeURIComponent(cleanId)}&name=${encodeURIComponent(
+          gameData.name
+        )}&provider=${encodeURIComponent(gameData.provider)}&demo=1`,
+      remoteGameCode: gameData.remoteGameCode || cleanId,
+    };
+
+    this.games.unshift(newGame);
+    this.saveGames();
+    void upsertGameCatalogFirestore(newGame);
+    return newGame;
+  }
+
   updateGame(id: string, updates: Partial<GameItem>): boolean {
     const game = this.games.find(g => g.id === id);
     if (!game) return false;
     Object.assign(game, updates);
     this.saveGames();
+    void upsertGameCatalogFirestore(game);
     return true;
+  }
+
+  deleteGame(id: string): boolean {
+    const beforeLen = this.games.length;
+    this.games = this.games.filter(g => g.id !== id);
+    if (this.games.length !== beforeLen) {
+      this.saveGames();
+      void deleteGameCatalogFirestore(id);
+      return true;
+    }
+    return false;
+  }
+
+  cloneRemoteProviderGames(): { addedCount: number; totalCount: number } {
+    const remoteExtras: GameItem[] = [
+      {
+        id: 'jili-golden-empire-vip',
+        name: 'Golden Empire',
+        bengaliName: 'গোল্ডেন এম্পায়ার',
+        category: 'hot',
+        provider: 'Jili',
+        image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&auto=format&fit=crop&q=80',
+        demoLink: '/game_frame.php?gameid=jili/GoldenEmpire&name=Golden%20Empire&provider=Jili&demo=1',
+        remoteGameCode: 'jili_golden_empire',
+        rating: 5,
+        multiplier: '2000X',
+        isHot: true,
+        rtp: 97.5,
+        playableType: 'super_ace',
+        minBet: 1,
+        maxBet: 5000,
+        active: true,
+      },
+      {
+        id: 'pg-fortune-tiger-vip',
+        name: 'Fortune Tiger',
+        bengaliName: 'ফরচুন টাইগার',
+        category: 'hot',
+        provider: 'Pocket Games Soft',
+        image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop&q=80',
+        demoLink: '/game_frame.php?gameid=pgsoft/FortuneTiger&name=Fortune%20Tiger&provider=Pocket%20Games%20Soft&demo=1',
+        remoteGameCode: 'pg_fortune_tiger',
+        rating: 5,
+        multiplier: '2500X',
+        isHot: true,
+        rtp: 96.9,
+        playableType: 'fortune_gems',
+        minBet: 2,
+        maxBet: 10000,
+        active: true,
+      },
+      {
+        id: 'pp-spaceman-crash',
+        name: 'Spaceman Crash',
+        bengaliName: 'স্পেসম্যান ক্র্যাশ',
+        category: 'hot',
+        provider: 'Pragmatic Play',
+        image: 'https://images.unsplash.com/photo-1517976487507-5b3b4a450532?w=400&auto=format&fit=crop&q=80',
+        demoLink: '/game_frame.php?gameid=pragmatic/Spaceman&name=Spaceman%20Crash&provider=Pragmatic%20Play&demo=1',
+        remoteGameCode: 'pp_spaceman',
+        rating: 5,
+        multiplier: '5000X Crash',
+        isHot: true,
+        rtp: 97.0,
+        playableType: 'flyx',
+        minBet: 10,
+        maxBet: 25000,
+        active: true,
+      },
+      {
+        id: 'fc-chinese-new-year-more',
+        name: 'Chinese New Year Moreways',
+        bengaliName: 'চাইনিজ নিউ ইয়ার মোরওয়েজ',
+        category: 'slots',
+        provider: 'FA CHAI Gaming',
+        image: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=400&auto=format&fit=crop&q=80',
+        demoLink: '/game_frame.php?gameid=fachai/CNYMoreways&name=CNY%20Moreways&provider=FA%20CHAI%20Gaming&demo=1',
+        remoteGameCode: 'fc_cny_moreways',
+        rating: 4.9,
+        multiplier: '16,800X',
+        rtp: 96.8,
+        playableType: 'super_ace',
+        minBet: 1,
+        maxBet: 5000,
+        active: true,
+      },
+    ];
+
+    let added = 0;
+    const allCloneCandidates = [...GAME_CATALOG, ...remoteExtras];
+    allCloneCandidates.forEach(candidate => {
+      if (!this.games.some(g => g.id === candidate.id)) {
+        this.games.push(candidate);
+        added++;
+        void upsertGameCatalogFirestore(candidate);
+      }
+    });
+    this.saveGames();
+    return { addedCount: added, totalCount: this.games.length };
   }
 
   // --- Bound Wallets & Cards Management ---

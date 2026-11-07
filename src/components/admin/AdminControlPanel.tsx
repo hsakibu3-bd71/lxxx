@@ -55,7 +55,7 @@ export const AdminControlPanel: React.FC<AdminControlPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [users, setUsers] = useState(storage.getAllUsers());
-  const [transactions, setTransactions] = useState(storage.getTransactions());
+  const [transactions, setTransactions] = useState(storage.getTransactions(true));
   const [games, setGames] = useState(storage.getGames());
   const [providers, setProviders] = useState(storage.getProviders());
   const [siteSettings, setSiteSettings] = useState(storage.getSiteSettings());
@@ -64,6 +64,19 @@ export const AdminControlPanel: React.FC<AdminControlPanelProps> = ({
   const [userSearch, setUserSearch] = useState('');
   const [gameFilterProvider, setGameFilterProvider] = useState('All');
   const [gameSearch, setGameSearch] = useState('');
+
+  // Admin Game Catalog CRUD States
+  const [isAddingGame, setIsAddingGame] = useState(false);
+  const [editingGameId, setEditingGameId] = useState<string | null>(null);
+  const [newGameName, setNewGameName] = useState('');
+  const [newGameBengaliName, setNewGameBengaliName] = useState('');
+  const [newGameCategory, setNewGameCategory] = useState<'hot' | 'slots' | 'fishing' | 'live' | 'poker' | 'lottery' | 'sports'>('slots');
+  const [newGameProvider, setNewGameProvider] = useState<string>('Jili');
+  const [newGameImage, setNewGameImage] = useState('https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400&auto=format&fit=crop&q=80');
+  const [newGameDemoLink, setNewGameDemoLink] = useState('');
+  const [newGameRtp, setNewGameRtp] = useState(97.2);
+  const [newGameMultiplier, setNewGameMultiplier] = useState('2000X');
+  const [gameCatalogNotice, setGameCatalogNotice] = useState<string | null>(null);
 
   // Selected file for PHP code viewer
   const [selectedFileIdx, setSelectedFileIdx] = useState(0);
@@ -259,12 +272,101 @@ export const AdminControlPanel: React.FC<AdminControlPanelProps> = ({
 
   const refreshAll = () => {
     setUsers(storage.getAllUsers());
-    setTransactions(storage.getTransactions());
+    setTransactions(storage.getTransactions(true));
     setGames(storage.getGames());
     setProviders(storage.getProviders());
     setSiteSettings(storage.getSiteSettings());
     setSiteAssets(storage.getSiteAssets());
     onRefreshData();
+  };
+
+  const showGameNotice = (msg: string) => {
+    setGameCatalogNotice(msg);
+    setTimeout(() => setGameCatalogNotice(null), 3500);
+  };
+
+  const handleSaveGameCatalogForm = () => {
+    soundFX.playWin();
+    if (!newGameName.trim()) {
+      showGameNotice('গেমের ইংরেজি নাম (Game Name) লিখুন।');
+      return;
+    }
+    const cleanName = newGameName.trim();
+    const cleanBn = newGameBengaliName.trim() || cleanName;
+    const defaultDemo = `/game_frame.php?gameid=${encodeURIComponent(
+      newGameProvider.toLowerCase().replace(/[^a-z0-9]/g, '') + '/' + cleanName.replace(/[^a-zA-Z0-9]/g, '')
+    )}&name=${encodeURIComponent(cleanName)}&provider=${encodeURIComponent(newGameProvider)}&demo=1`;
+
+    if (editingGameId) {
+      storage.updateGame(editingGameId, {
+        name: cleanName,
+        bengaliName: cleanBn,
+        category: newGameCategory,
+        provider: newGameProvider as any,
+        image: newGameImage.trim() || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400&auto=format&fit=crop&q=80',
+        demoLink: newGameDemoLink.trim() || defaultDemo,
+        rtp: Number(newGameRtp || 97.2),
+        multiplier: newGameMultiplier.trim() || '1000X',
+      });
+      setEditingGameId(null);
+      setIsAddingGame(false);
+      refreshAll();
+      showGameNotice(`"${cleanBn}" গেমের তথ্য সফলভাবে আপডেট করা হয়েছে!`);
+    } else {
+      storage.addGame({
+        name: cleanName,
+        bengaliName: cleanBn,
+        category: newGameCategory,
+        provider: newGameProvider as any,
+        image: newGameImage.trim() || 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400&auto=format&fit=crop&q=80',
+        demoLink: newGameDemoLink.trim() || defaultDemo,
+        rating: 5,
+        multiplier: newGameMultiplier.trim() || '1000X',
+        isHot: newGameCategory === 'hot',
+        isNew: true,
+        rtp: Number(newGameRtp || 97.2),
+        playableType: newGameCategory === 'fishing' ? 'happy_fishing' : newGameCategory === 'live' ? 'live_roulette' : newGameCategory === 'poker' ? 'teen_patti' : 'super_ace',
+        minBet: 1,
+        maxBet: 10000,
+        active: true,
+      });
+      setIsAddingGame(false);
+      setNewGameName('');
+      setNewGameBengaliName('');
+      setNewGameDemoLink('');
+      refreshAll();
+      showGameNotice(`নতুন গেম "${cleanBn}" সফলভাবে ক্যাটালগে যোগ হয়েছে!`);
+    }
+  };
+
+  const handleStartEditGame = (g: any) => {
+    soundFX.playClick();
+    setEditingGameId(g.id);
+    setNewGameName(g.name);
+    setNewGameBengaliName(g.bengaliName);
+    setNewGameCategory(g.category);
+    setNewGameProvider(g.provider);
+    setNewGameImage(g.image);
+    setNewGameDemoLink(g.demoLink || '');
+    setNewGameRtp(g.rtp);
+    setNewGameMultiplier(g.multiplier || '1000X');
+    setIsAddingGame(true);
+  };
+
+  const handleDeleteGameItem = (id: string, title: string) => {
+    soundFX.playClick();
+    storage.deleteGame(id);
+    refreshAll();
+    showGameNotice(`"${title}" গেমটি ক্যাটালগ থেকে মুছে ফেলা হয়েছে।`);
+  };
+
+  const handleCloneAllRemoteProviderGames = () => {
+    soundFX.playWin();
+    const res = storage.cloneRemoteProviderGames();
+    refreshAll();
+    showGameNotice(
+      `60bd98.vip সকল প্রোভাইডার গেম সিঙ্ক সম্পন্ন! নতুন যুক্ত: ${res.addedCount} টি (মোট গেম: ${res.totalCount} টি)`
+    );
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, onDone: (dataUrl: string) => void) => {
@@ -1504,33 +1606,230 @@ export const AdminControlPanel: React.FC<AdminControlPanelProps> = ({
         {/* ========================================== */}
         {activeTab === 'games' && (
           <div className="space-y-4 max-w-6xl mx-auto">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-              <div className="flex gap-2 w-full sm:w-auto">
+            {gameCatalogNotice && (
+              <div className="p-3 bg-emerald-950/90 border border-emerald-500 text-emerald-200 rounded-xl text-xs font-bold flex items-center justify-between">
+                <span>✅ {gameCatalogNotice}</span>
+                <button onClick={() => setGameCatalogNotice(null)} className="text-emerald-300 hover:text-white">✕</button>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#1c0306] p-3.5 rounded-2xl border border-[#500c13]">
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                 <input
                   type="text"
                   value={gameSearch}
                   onChange={e => setGameSearch(e.target.value)}
-                  placeholder="গেম খুঁজুন..."
-                  className="bg-[#200305] border border-[#500c13] rounded-lg px-3 py-1.5 text-xs text-white"
+                  placeholder="গেম খুঁজুন (নাম / প্রোভাইডার)..."
+                  className="bg-[#120103] border border-[#500c13] rounded-lg px-3 py-1.5 text-xs text-white"
                 />
                 <select
                   value={gameFilterProvider}
                   onChange={e => setGameFilterProvider(e.target.value)}
-                  className="bg-[#200305] border border-[#500c13] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                  className="bg-[#120103] border border-[#500c13] rounded-lg px-2.5 py-1.5 text-xs text-white"
                 >
-                  <option value="All">সকল প্রোভাইডার</option>
+                  <option value="All">সকল প্রোভাইডার ({games.length})</option>
                   <option value="Jili">Jili</option>
                   <option value="Pocket Games Soft">Pocket Games Soft</option>
                   <option value="Pragmatic Play">Pragmatic Play</option>
                   <option value="JDB">JDB</option>
                   <option value="FA CHAI Gaming">FA CHAI Gaming</option>
                   <option value="Microgaming">Microgaming</option>
+                  <option value="CQ9">CQ9</option>
+                  <option value="Spadegaming">Spadegaming</option>
+                  <option value="Joker">Joker</option>
+                  <option value="Fastspin">Fastspin</option>
+                  <option value="BTGaming">BTGaming</option>
+                  <option value="2J GAMES">2J GAMES</option>
+                  <option value="SWGaming">SWGaming</option>
+                  <option value="FunTa Gaming">FunTa Gaming</option>
+                  <option value="Baison Poker">Baison Poker</option>
+                  <option value="Kings Poker">Kings Poker</option>
+                  <option value="BNG">BNG</option>
                 </select>
               </div>
-              <span className="text-xs text-gray-400">
-                মোট সক্রিয় গেম: <strong>{games.filter(g => g.active).length}</strong> / {games.length}
-              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => {
+                    soundFX.playClick();
+                    setEditingGameId(null);
+                    setNewGameName('');
+                    setNewGameBengaliName('');
+                    setNewGameDemoLink('');
+                    setIsAddingGame(!isAddingGame);
+                  }}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg text-xs flex items-center gap-1.5 shadow cursor-pointer"
+                >
+                  <Plus size={13} />
+                  <span>{isAddingGame ? 'ফরম বন্ধ করুন' : 'নতুন গেম যোগ করুন'}</span>
+                </button>
+
+                <button
+                  onClick={handleCloneAllRemoteProviderGames}
+                  className="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:brightness-105 text-black font-black rounded-lg text-xs flex items-center gap-1.5 shadow cursor-pointer"
+                >
+                  <Zap size={13} />
+                  <span>60bd98.vip সকল প্রোভাইডার গেম ক্লোন / সিঙ্ক</span>
+                </button>
+
+                <span className="text-xs text-gray-400 ml-1">
+                  সক্রিয়: <strong>{games.filter(g => g.active).length}</strong> / {games.length}
+                </span>
+              </div>
             </div>
+
+            {/* Add / Edit Game Drawer */}
+            {isAddingGame && (
+              <div className="p-4 bg-[#260408] border border-amber-500/50 rounded-2xl shadow-xl space-y-3">
+                <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                  <h4 className="font-black text-sm text-yellow-300">
+                    {editingGameId ? 'গেম তথ্য সম্পাদনা (Edit Game)' : 'নতুন ক্যাসিনো গেম যুক্ত করুন (Add Game)'}
+                  </h4>
+                  <button
+                    onClick={() => {
+                      setIsAddingGame(false);
+                      setEditingGameId(null);
+                    }}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-bold">গেমের নাম (English):</label>
+                    <input
+                      type="text"
+                      value={newGameName}
+                      onChange={e => setNewGameName(e.target.value)}
+                      placeholder="যেমন: Super Ace Deluxe"
+                      className="w-full bg-black/60 border border-gray-700 rounded-lg p-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-bold">গেমের বাংলা নাম:</label>
+                    <input
+                      type="text"
+                      value={newGameBengaliName}
+                      onChange={e => setNewGameBengaliName(e.target.value)}
+                      placeholder="যেমন: সুপার এইস ডিলাক্স"
+                      className="w-full bg-black/60 border border-gray-700 rounded-lg p-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-bold">প্রোভাইডার (Provider):</label>
+                    <select
+                      value={newGameProvider}
+                      onChange={e => setNewGameProvider(e.target.value)}
+                      className="w-full bg-black/60 border border-gray-700 rounded-lg p-2 text-white font-bold"
+                    >
+                      <option value="Jili">Jili</option>
+                      <option value="Pocket Games Soft">Pocket Games Soft</option>
+                      <option value="Pragmatic Play">Pragmatic Play</option>
+                      <option value="JDB">JDB</option>
+                      <option value="FA CHAI Gaming">FA CHAI Gaming</option>
+                      <option value="Microgaming">Microgaming</option>
+                      <option value="CQ9">CQ9</option>
+                      <option value="Spadegaming">Spadegaming</option>
+                      <option value="Joker">Joker</option>
+                      <option value="Fastspin">Fastspin</option>
+                      <option value="BTGaming">BTGaming</option>
+                      <option value="2J GAMES">2J GAMES</option>
+                      <option value="SWGaming">SWGaming</option>
+                      <option value="FunTa Gaming">FunTa Gaming</option>
+                      <option value="Baison Poker">Baison Poker</option>
+                      <option value="Kings Poker">Kings Poker</option>
+                      <option value="BNG">BNG</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-bold">ক্যাটাগরি (Category):</label>
+                    <select
+                      value={newGameCategory}
+                      onChange={e => setNewGameCategory(e.target.value as any)}
+                      className="w-full bg-black/60 border border-gray-700 rounded-lg p-2 text-white font-bold"
+                    >
+                      <option value="hot">গরম খেলা (Hot)</option>
+                      <option value="slots">স্লট খেলা (Slots)</option>
+                      <option value="fishing">মাছ ধরা (Fishing)</option>
+                      <option value="live">লাইভ ক্যাসিনো (Live)</option>
+                      <option value="poker">পোকার / কার্ড (Poker)</option>
+                      <option value="sports">খেলাধুলা (Sports)</option>
+                      <option value="lottery">লটারি (Lottery)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-bold">RTP (%) ও মাল্টিপ্লায়ার:</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={newGameRtp}
+                        onChange={e => setNewGameRtp(Number(e.target.value))}
+                        className="w-24 bg-black/60 border border-gray-700 rounded-lg p-2 text-yellow-300 font-mono"
+                      />
+                      <input
+                        type="text"
+                        value={newGameMultiplier}
+                        onChange={e => setNewGameMultiplier(e.target.value)}
+                        placeholder="2000X"
+                        className="flex-1 bg-black/60 border border-gray-700 rounded-lg p-2 text-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-gray-300 block mb-1 font-bold">ডেমো / রিমোট লঞ্চ লিংক (Demo Link):</label>
+                    <input
+                      type="text"
+                      value={newGameDemoLink}
+                      onChange={e => setNewGameDemoLink(e.target.value)}
+                      placeholder="/game_frame.php?gameid=jili/SuperAce&demo=1"
+                      className="w-full bg-black/60 border border-gray-700 rounded-lg p-2 text-emerald-300 font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="text-gray-300 block mb-1 font-bold">থাম্বনেইল ইমেজ URL অথবা ফাইল আপলোড:</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newGameImage}
+                        onChange={e => setNewGameImage(e.target.value)}
+                        placeholder="https://..."
+                        className="flex-1 bg-black/60 border border-gray-700 rounded-lg p-2 text-white font-mono text-xs"
+                      />
+                      <label className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-yellow-300 border border-amber-500/40 rounded-lg cursor-pointer flex items-center gap-1.5 text-xs font-bold shrink-0">
+                        <Upload size={13} /> থাম্বনেইল আপলোড
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => handleFileUpload(e, url => setNewGameImage(url))}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                  <button
+                    onClick={() => {
+                      setIsAddingGame(false);
+                      setEditingGameId(null);
+                    }}
+                    className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded-lg text-xs"
+                  >
+                    বাতিল
+                  </button>
+                  <button
+                    onClick={handleSaveGameCatalogForm}
+                    className="px-4 py-1.5 bg-amber-400 hover:bg-amber-300 text-black font-black rounded-lg text-xs shadow-md"
+                  >
+                    {editingGameId ? 'পরিবর্তন সংরক্ষণ করুন' : 'গেম ক্যাটালগে যুক্ত করুন'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {games
@@ -1551,7 +1850,9 @@ export const AdminControlPanel: React.FC<AdminControlPanelProps> = ({
                     />
                     <div className="flex-1 overflow-hidden">
                       <span className="font-bold text-white text-xs block truncate">{g.bengaliName}</span>
-                      <span className="text-[10px] text-gray-400 block truncate">{g.name} ({g.provider})</span>
+                      <span className="text-[10px] text-gray-400 block truncate">
+                        {g.name} ({g.provider}) • <span className="text-amber-300 uppercase">{g.category}</span>
+                      </span>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] text-gray-400">RTP:</span>
                         <input
@@ -1564,16 +1865,34 @@ export const AdminControlPanel: React.FC<AdminControlPanelProps> = ({
                         <span className="text-[10px] text-gray-400">%</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleToggleGame(g.id, g.active)}
-                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
-                        g.active
-                          ? 'bg-emerald-900/80 text-emerald-200 border border-emerald-700'
-                          : 'bg-red-950 text-red-300 border border-red-900'
-                      }`}
-                    >
-                      {g.active ? 'সক্রিয়' : 'বন্ধ'}
-                    </button>
+                    <div className="flex flex-col gap-1 items-end shrink-0">
+                      <button
+                        onClick={() => handleToggleGame(g.id, g.active)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          g.active
+                            ? 'bg-emerald-900/80 text-emerald-200 border border-emerald-700'
+                            : 'bg-red-950 text-red-300 border border-red-900'
+                        }`}
+                      >
+                        {g.active ? 'সক্রিয়' : 'বন্ধ'}
+                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleStartEditGame(g)}
+                          className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded text-[10px] font-bold"
+                          title="সম্পাদনা"
+                        >
+                          ✎ এডিট
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGameItem(g.id, g.bengaliName)}
+                          className="p-1 bg-red-950/80 hover:bg-red-800 text-red-300 rounded border border-red-800/60"
+                          title="মুছে ফেলুন"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))}
             </div>

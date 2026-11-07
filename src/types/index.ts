@@ -28,6 +28,8 @@ export interface GameItem {
   category: GameCategory;
   provider: GameProvider;
   image: string;
+  demoLink?: string;
+  remoteGameCode?: string;
   rating: number;
   multiplier?: string;
   isHot?: boolean;
@@ -55,12 +57,15 @@ export interface BoundWallet {
 
 export interface Transaction {
   id: string;
+  userId?: string;
+  username?: string;
   type: 'deposit' | 'withdraw' | 'bet' | 'win' | 'bonus';
   amount: number;
+  balanceAfter?: number;
   fee?: number;
   status: 'pending' | 'approved' | 'rejected' | 'completed';
-  method?: 'nagad' | 'bkash' | 'rocket' | 'bank';
-  channel?: 'TKPAYBDT' | 'BD99PAYBDT' | 'GOLDPAYBDT' | 'AIPAYBD';
+  method?: 'nagad' | 'bkash' | 'rocket' | 'bank' | string;
+  channel?: 'TKPAYBDT' | 'BD99PAYBDT' | 'GOLDPAYBDT' | 'AIPAYBD' | string;
   accountNumber?: string;
   trxId?: string;
   note?: string;
@@ -69,6 +74,8 @@ export interface Transaction {
 
 export interface BetRecord {
   id: string;
+  userId?: string;
+  username?: string;
   gameId: string;
   gameName: string;
   provider: GameProvider;

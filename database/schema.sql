@@ -32,37 +32,49 @@ CREATE TABLE `users` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 2. Wallets Table
+-- 2. Wallets Table (Atomic Row-Level Locking via SELECT ... FOR UPDATE & version counter)
 CREATE TABLE `wallets` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL UNIQUE,
   `balance` decimal(14,2) NOT NULL DEFAULT 0.00,
   `frozen_balance` decimal(14,2) NOT NULL DEFAULT 0.00,
+  `total_deposited` decimal(14,2) NOT NULL DEFAULT 0.00,
+  `total_withdrawn` decimal(14,2) NOT NULL DEFAULT 0.00,
+  `total_wagered` decimal(14,2) NOT NULL DEFAULT 0.00,
+  `total_won` decimal(14,2) NOT NULL DEFAULT 0.00,
   `currency` varchar(5) NOT NULL DEFAULT 'BDT',
+  `version` bigint unsigned NOT NULL DEFAULT 1,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `wallets_user_id_foreign` (`user_id`),
-  CONSTRAINT `wallets_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  CONSTRAINT `wallets_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `wallets_non_negative_balance` CHECK (`balance` >= 0.00)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. Transactions Table (Nagad, bKash, Rocket, Bonuses)
+-- 3. Transactions & Atomic Balance Ledger Table (Deposits, Withdrawals, Game Winnings/Losses, Bonuses)
 CREATE TABLE `transactions` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` bigint unsigned NOT NULL,
-  `type` enum('deposit','withdraw','bet','win','bonus') NOT NULL,
+  `type` enum('deposit','withdraw','bet','win','bonus','refund') NOT NULL,
   `amount` decimal(14,2) NOT NULL,
   `fee` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `before_balance` decimal(14,2) NOT NULL DEFAULT 0.00,
+  `after_balance` decimal(14,2) NOT NULL DEFAULT 0.00,
   `status` enum('pending','approved','rejected','completed') NOT NULL DEFAULT 'pending',
   `method` varchar(30) DEFAULT NULL,
   `channel` varchar(30) DEFAULT NULL,
   `trx_id` varchar(60) DEFAULT NULL UNIQUE,
+  `idempotency_key` varchar(100) DEFAULT NULL UNIQUE,
+  `game_code` varchar(60) DEFAULT NULL,
+  `round_id` varchar(100) DEFAULT NULL,
   `account_number` varchar(30) DEFAULT NULL,
   `note` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `transactions_user_id_foreign` (`user_id`),
+  KEY `transactions_user_id_type_idx` (`user_id`, `type`),
+  KEY `transactions_created_at_idx` (`created_at`),
   CONSTRAINT `transactions_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -79,23 +91,49 @@ CREATE TABLE `bound_wallets` (
   CONSTRAINT `bound_wallets_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5. Game Catalog Table
+-- 5. Game Categories Table (Mirrors 60bd98.vip 3D Category Cards)
+CREATE TABLE IF NOT EXISTS `game_categories` (
+  `id` varchar(40) NOT NULL,
+  `title_bn` varchar(80) NOT NULL,
+  `sub_bn` varchar(120) NOT NULL,
+  `image` varchar(255) NOT NULL,
+  `icon_bg` varchar(100) NOT NULL DEFAULT 'from-orange-600 to-red-800',
+  `sort_order` int unsigned NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5b. Game Catalog Table
 CREATE TABLE `games` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `game_code` varchar(60) NOT NULL UNIQUE,
+  `remote_game_code` varchar(120) DEFAULT NULL,
   `name` varchar(100) NOT NULL,
   `bengali_name` varchar(100) NOT NULL,
   `category` enum('hot','slots','fishing','live','poker','lottery','sports') NOT NULL DEFAULT 'slots',
   `provider` varchar(50) NOT NULL,
   `image` varchar(255) NOT NULL,
+  `demo_url` varchar(500) DEFAULT NULL,
   `rating` tinyint unsigned NOT NULL DEFAULT 5,
   `multiplier` varchar(30) DEFAULT NULL,
   `rtp` decimal(5,2) NOT NULL DEFAULT 96.50,
+  `min_bet` decimal(10,2) NOT NULL DEFAULT 1.00,
+  `max_bet` decimal(12,2) NOT NULL DEFAULT 5000.00,
   `is_hot` tinyint(1) NOT NULL DEFAULT 0,
   `is_new` tinyint(1) NOT NULL DEFAULT 0,
   `active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5c. User Favorite Games Table
+CREATE TABLE IF NOT EXISTS `user_favorites` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `game_code` varchar(60) NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_fav_unique` (`user_id`, `game_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 6. Bet Logs Table

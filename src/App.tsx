@@ -71,11 +71,20 @@ export default function App() {
   // Active Game Launchers (Interactive Iframe & Native Engines)
   const [activeGame, setActiveGame] = useState<GameItem | null>(null);
   const [activeIframeGame, setActiveIframeGame] = useState<GameItem | null>(null);
+  const [isDemoLaunch, setIsDemoLaunch] = useState<boolean>(false);
+  const [catalogTick, setCatalogTick] = useState<number>(0);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
   };
+
+  // Listen for real-time catalog & favorites updates from Firestore / Admin Panel
+  useEffect(() => {
+    const onCatalogChange = () => setCatalogTick(t => t + 1);
+    window.addEventListener('livexwin_catalog_updated', onCatalogChange);
+    return () => window.removeEventListener('livexwin_catalog_updated', onCatalogChange);
+  }, []);
 
   // Listen for hash/popstate changes for standalone /admin or #admin
   useEffect(() => {
@@ -125,6 +134,7 @@ export default function App() {
 
   const refreshUser = () => {
     setCurrentUser(storage.getCurrentUser());
+    setCatalogTick(t => t + 1);
   };
 
   const openAuthModal = (mode: 'login' | 'register' = 'login') => {
@@ -149,14 +159,16 @@ export default function App() {
     showToast('আপনি সফলভাবে লগআউট করেছেন।');
   };
 
-  const handleLaunchGame = (game: GameItem) => {
+  const handleLaunchGame = (game: GameItem, isDemo: boolean = false) => {
     soundFX.playClick();
+    setIsDemoLaunch(isDemo);
     setActiveIframeGame(game);
   };
 
   const handleCloseGame = () => {
     setActiveGame(null);
     setActiveIframeGame(null);
+    setIsDemoLaunch(false);
     refreshUser();
   };
 
@@ -179,6 +191,7 @@ export default function App() {
   }
 
   const allGames = storage.getGames();
+  void catalogTick;
   const visibleGames = allGames.filter(g => {
     if (activeCategory !== 'all' && g.category !== activeCategory) {
       return false;
@@ -380,6 +393,7 @@ export default function App() {
         <GameIframeModal
           game={activeIframeGame}
           user={currentUser}
+          initialDemoMode={isDemoLaunch}
           onClose={handleCloseGame}
           onOpenDeposit={() => requireAuth(() => setIsDepositOpen(true))}
           onRefreshBalance={refreshUser}

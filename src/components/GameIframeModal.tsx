@@ -10,11 +10,15 @@ import {
   Wallet,
   PlusCircle,
   ShieldCheck,
+  Heart,
+  Link2,
+  Check,
 } from 'lucide-react';
 
 interface GameIframeModalProps {
   game: GameItem;
   user: UserProfile | null;
+  initialDemoMode?: boolean;
   onClose: () => void;
   onOpenDeposit: () => void;
   onRefreshBalance: () => void;
@@ -23,6 +27,7 @@ interface GameIframeModalProps {
 export const GameIframeModal: React.FC<GameIframeModalProps> = ({
   game,
   user,
+  initialDemoMode = false,
   onClose,
   onOpenDeposit,
   onRefreshBalance,
@@ -31,6 +36,9 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [iframeKey, setIframeKey] = useState(Date.now());
   const [launchedUrl, setLaunchedUrl] = useState<string>('');
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(initialDemoMode || !user);
+  const [isFav, setIsFav] = useState<boolean>(() => storage.isFavoriteGame(game.id));
+  const [copiedDemo, setCopiedDemo] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Toggle fullscreen mode
@@ -57,7 +65,7 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const data = event.data;
-      if (data && data.type === 'LIVEXWIN_BET_RESULT' && user) {
+      if (data && data.type === 'LIVEXWIN_BET_RESULT' && user && !isDemoMode) {
         const netDelta = Number(data.payoutAmount || 0) - Number(data.betAmount || 0);
         storage.updateBalance(netDelta);
         storage.recordGameBet(
@@ -73,9 +81,9 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [user, game, onRefreshBalance]);
+  }, [user, game, isDemoMode, onRefreshBalance]);
 
-  // Launch Game via SoftAggregator API v1 (PDF Page 5-6: createPlayer -> getGame / getGameDemo)
+  // Launch Game via SoftAggregator API v1 (createPlayer -> getGame / getGameDemo) or custom demoUrl
   useEffect(() => {
     let cancelled = false;
     const launchViaSoftAggregator = async () => {
@@ -87,12 +95,20 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
       const country = settings.softAggregatorCountry || 'BD';
       const providerSlug = game.provider.toLowerCase().replace(/[^a-z0-9]/g, '');
       const gameSlug = game.name.replace(/[^a-zA-Z0-9]/g, '');
-      const idHash = `${providerSlug}/${gameSlug}`;
+      const idHash = game.remoteGameCode || `${providerSlug}/${gameSlug}`;
       const isMobileDevice = window.innerWidth <= 768;
 
+      // If in Demo Mode and a custom external/internal demoUrl is explicitly configured on the game, use it directly if it starts with http or /game_frame.php
+      if (isDemoMode && game.demoUrl && game.demoUrl.startsWith('http')) {
+        if (!cancelled) {
+          setLaunchedUrl(game.demoUrl);
+        }
+        return;
+      }
+
       try {
-        if (user) {
-          // 1. Ensure player exists via createPlayer (PDF Page 5)
+        if (user && !isDemoMode) {
+          // 1. Ensure player exists via createPlayer (Launch-First -> Post-Launch GGR Balance Load)
           await fetch('/api/softaggregator/v1', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -107,7 +123,7 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
             }),
           });
 
-          // 2. Launch real-money game via getGame (PDF Page 5-6)
+          // 2. Launch real-money game via getGame
           const res = await fetch('/api/softaggregator/v1', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -132,7 +148,7 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
             return;
           }
         } else {
-          // Guest demo launch via getGameDemo (PDF Page 6: country never required in demo mode)
+          // Guest or explicit Demo mode launch via getGameDemo
           const res = await fetch('/api/softaggregator/v1', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -159,14 +175,18 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
       }
 
       if (!cancelled) {
-        const username = user?.username || 'DemoPlayer';
-        const bdtBalance = user ? user.wallet.balance : 500;
+        if (isDemoMode && game.demoUrl) {
+          setLaunchedUrl(game.demoUrl);
+          return;
+        }
+        const username = user && !isDemoMode ? user.username : 'DemoPlayer';
+        const bdtBalance = user && !isDemoMode ? user.wallet.balance : 500;
         setLaunchedUrl(
           `/game_frame.php?gameid=${encodeURIComponent(idHash)}&name=${encodeURIComponent(
             game.name
           )}&provider=${encodeURIComponent(game.provider)}&user=${encodeURIComponent(
             username
-          )}&balance=${bdtBalance}&demo=${user ? '0' : '1'}`
+          )}&balance=${bdtBalance}&demo=${user && !isDemoMode ? '0' : '1'}`
         );
       }
     };
@@ -175,7 +195,23 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [game, user?.id, iframeKey]);
+  }, [game, user?.id, isDemoMode, iframeKey]);
+
+  const handleToggleFavorite = () => {
+    soundFX.playClick();
+    storage.toggleFavoriteGame(game.id);
+    setIsFav(storage.isFavoriteGame(game.id));
+  };
+
+  const handleCopyDemoLink = () => {
+    soundFX.playClick();
+    const fullDemoLink = game.demoUrl?.startsWith('http')
+      ? game.demoUrl
+      : `${window.location.origin}${game.demoUrl || `/game_frame.php?gameid=${encodeURIComponent(game.remoteGameCode || game.name)}&demo=1`}`;
+    navigator.clipboard.writeText(fullDemoLink).catch(() => {});
+    setCopiedDemo(true);
+    setTimeout(() => setCopiedDemo(false), 2000);
+  };
 
   return (
     <div
@@ -184,9 +220,9 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
       onContextMenu={e => e.preventDefault()}
     >
       {/* Top Gaming Bar (48px height) */}
-      <div className="h-12 bg-gradient-to-r from-[#1f0205] via-[#33050a] to-[#1f0205] border-b border-[#5a0c13] px-3 flex items-center justify-between text-white shadow-xl z-20 shrink-0">
-        {/* Left: Back & Game Info */}
-        <div className="flex items-center gap-2">
+      <div className="h-12 bg-gradient-to-r from-[#1f0205] via-[#33050a] to-[#1f0205] border-b border-[#5a0c13] px-2.5 sm:px-3 flex items-center justify-between text-white shadow-xl z-20 shrink-0">
+        {/* Left: Back, Game Info & Favorite Heart */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             onClick={() => {
               soundFX.playClick();
@@ -195,31 +231,78 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
             className="p-1.5 rounded-lg bg-black/40 hover:bg-black/60 text-gray-300 hover:text-white border border-white/10 active:scale-95 transition-transform cursor-pointer"
             title="গেম থেকে বের হন"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={17} />
           </button>
 
           <div className="flex flex-col">
-            <span className="text-xs font-bold text-white truncate max-w-[120px] sm:max-w-[180px] leading-tight">
-              {game.bengaliName || game.name}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-bold text-white truncate max-w-[105px] sm:max-w-[180px] leading-tight">
+                {game.bengaliName || game.name}
+              </span>
+              <button
+                type="button"
+                onClick={handleToggleFavorite}
+                className="p-0.5 rounded hover:bg-white/10 transition-colors cursor-pointer"
+                title={isFav ? 'পছন্দের তালিকা থেকে সরান' : 'পছন্দের তালিকায় সেভ করুন'}
+              >
+                <Heart
+                  size={13}
+                  className={isFav ? 'fill-red-500 text-red-500' : 'text-gray-300 hover:text-white'}
+                />
+              </button>
+            </div>
             <div className="flex items-center gap-1">
               <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">
                 {game.provider}
               </span>
-              <span className="text-[9px] text-emerald-400 font-mono font-semibold flex items-center gap-0.5">
-                <ShieldCheck size={10} /> SoftAggregator v1
+              <span className="text-[9px] text-emerald-400 font-mono font-semibold hidden xs:flex items-center gap-0.5">
+                <ShieldCheck size={10} /> GGR API
               </span>
             </div>
           </div>
         </div>
 
-        {/* Center / Right: Balance & Quick Deposit */}
-        <div className="flex items-center gap-2">
+        {/* Center / Right: Demo/Real Switcher, Demo Link Copy, Balance & Quick Deposit */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Real vs Demo Mode Switcher */}
+          <button
+            type="button"
+            onClick={() => {
+              soundFX.playClick();
+              if (isDemoMode && !user) {
+                onOpenDeposit();
+                return;
+              }
+              setIsDemoMode(prev => !prev);
+            }}
+            className={`px-2 py-1 rounded-full text-[10px] font-black border transition-all cursor-pointer ${
+              isDemoMode
+                ? 'bg-amber-500/20 border-amber-400 text-amber-300 hover:bg-amber-500/30'
+                : 'bg-emerald-500/20 border-emerald-400 text-emerald-300 hover:bg-emerald-500/30'
+            }`}
+            title="ডেমো এবং রিয়েল মোড পরিবর্তন করুন"
+          >
+            {isDemoMode ? '🎮 DEMO MODE' : '💰 REAL BDT'}
+          </button>
+
+          {/* Copy Demo Link Button */}
+          <button
+            type="button"
+            onClick={handleCopyDemoLink}
+            className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg bg-black/40 hover:bg-black/60 text-[10px] font-bold text-gray-300 hover:text-white border border-white/10 cursor-pointer"
+            title="ক্লোন রিমোট এপিআই ডেমো লিংক কপি করুন"
+          >
+            {copiedDemo ? <Check size={12} className="text-emerald-400" /> : <Link2 size={12} className="text-amber-400" />}
+            <span>{copiedDemo ? 'কপি হয়েছে' : 'ডেমো লিংক'}</span>
+          </button>
+
           {/* Wallet Balance */}
-          <div className="flex items-center gap-1.5 bg-black/50 border border-yellow-500/30 px-2.5 py-1 rounded-full">
-            <Wallet size={12} className="text-yellow-400" />
-            <span className="text-xs font-mono font-black text-yellow-300">
-              ৳ {user ? user.wallet.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '500.00 (Demo)'}
+          <div className="flex items-center gap-1 bg-black/50 border border-yellow-500/30 px-2 sm:px-2.5 py-1 rounded-full">
+            <Wallet size={12} className="text-yellow-400 shrink-0" />
+            <span className="text-[11px] sm:text-xs font-mono font-black text-yellow-300">
+              ৳ {!isDemoMode && user
+                ? user.wallet.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                : '500.00 (Demo)'}
             </span>
           </div>
 
@@ -247,7 +330,7 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
             className="p-1.5 rounded-lg bg-black/40 hover:bg-black/60 text-gray-300 hover:text-white border border-white/10 active:scale-95 transition-transform cursor-pointer"
             title="গেম রিলোড করুন"
           >
-            <RotateCw size={15} className={isLoading ? 'animate-spin' : ''} />
+            <RotateCw size={14} className={isLoading ? 'animate-spin' : ''} />
           </button>
 
           {/* Fullscreen Toggle */}
@@ -256,7 +339,7 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
             className="p-1.5 rounded-lg bg-black/40 hover:bg-black/60 text-gray-300 hover:text-white border border-white/10 active:scale-95 transition-transform cursor-pointer"
             title={isFullscreen ? 'ছোট স্ক্রিন' : 'ফুলস্ক্রিন'}
           >
-            {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
         </div>
       </div>
@@ -271,7 +354,9 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
                 {game.bengaliName || game.name} লোড হচ্ছে...
               </p>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                SoftAggregator API v1 Seamless Wallet সংযোগ স্থাপন হচ্ছে
+                {isDemoMode
+                  ? 'Remote API Demo Session সংযোগ স্থাপন হচ্ছে...'
+                  : 'Launch-First → Post-Launch GGR Balance Load সংযোগ স্থাপন হচ্ছে...'}
               </p>
             </div>
           </div>
@@ -292,3 +377,4 @@ export const GameIframeModal: React.FC<GameIframeModalProps> = ({
     </div>
   );
 };
+

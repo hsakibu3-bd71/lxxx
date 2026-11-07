@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { GameItem } from '../types';
 import { soundFX } from '../utils/audio';
-import { Heart, Search } from 'lucide-react';
+import { Heart, Search, Layers } from 'lucide-react';
 
 interface GameGridProps {
   games: GameItem[];
   onLaunchGame: (game: GameItem) => void;
+  onOpenCatalog?: () => void;
 }
 
-export const GameGrid: React.FC<GameGridProps> = ({ games, onLaunchGame }) => {
+export const GameGrid: React.FC<GameGridProps> = ({ games, onLaunchGame, onOpenCatalog }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
 
@@ -33,9 +34,9 @@ export const GameGrid: React.FC<GameGridProps> = ({ games, onLaunchGame }) => {
 
   return (
     <div className="w-full max-w-lg mx-auto px-2 my-2">
-      {/* Search Bar matching card_c966a2e0.pdf and Winfish_deaf5f35.pdf: '🔍 অনুসন্ধান' */}
-      <div className="mb-3 relative">
-        <div className="relative">
+      {/* Search Bar & Dedicated Catalog Button matching 60bd98.vip */}
+      <div className="mb-3 flex items-center gap-2">
+        <div className="relative flex-1">
           <input
             type="text"
             value={searchQuery}
@@ -48,6 +49,19 @@ export const GameGrid: React.FC<GameGridProps> = ({ games, onLaunchGame }) => {
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
           />
         </div>
+        {onOpenCatalog && (
+          <button
+            onClick={() => {
+              soundFX.playClick();
+              onOpenCatalog();
+            }}
+            className="px-3 py-2 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 hover:brightness-110 text-black font-black text-[11px] flex items-center gap-1 shadow-md shrink-0 cursor-pointer active:scale-95 transition-transform"
+            title="সকল প্রোভাইডার গেম ক্যাটালগ"
+          >
+            <Layers size={13} />
+            <span>সকল গেম ({games.filter(g => g.active).length})</span>
+          </button>
+        )}
       </div>
 
       {/* 3-Column Games Grid (1:1 Match of 60BD.com pages 1 to 6) */}

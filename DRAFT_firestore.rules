@@ -1,0 +1,270 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'sakibhasanu3@gmail.com'
+      );
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidUserProfileDoc(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'username', 'nickname', 'phone', 'avatar',
+          'role', 'status', 'vipLevel', 'vipPoints',
+          'balance', 'frozenBalance', 'currency',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'username', 'nickname', 'phone', 'avatar',
+          'role', 'status', 'vipLevel', 'vipPoints',
+          'balance', 'frozenBalance', 'currency',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.uid == userId &&
+        data.username is string && data.username.size() >= 3 && data.username.size() <= 50 &&
+        data.nickname is string && data.nickname.size() >= 1 && data.nickname.size() <= 80 &&
+        data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 30 &&
+        data.avatar is string && data.avatar.size() >= 1 && data.avatar.size() <= 500 &&
+        data.role is string && data.role.size() <= 20 && (data.role == 'player' || data.role == 'admin') &&
+        data.status is string && data.status.size() <= 20 && (data.status == 'active' || data.status == 'banned') &&
+        data.vipLevel is number && data.vipLevel >= 0 && data.vipLevel <= 20 &&
+        data.vipPoints is number && data.vipPoints >= 0 && data.vipPoints <= 100000000 &&
+        data.balance is number && data.balance >= 0 && data.balance <= 100000000 &&
+        data.frozenBalance is number && data.frozenBalance >= 0 && data.frozenBalance <= 100000000 &&
+        data.currency is string && data.currency.size() == 3 && data.currency == 'BDT' &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTransactionDoc(data, userId, transactionId) {
+      return data.keys().hasAll([
+          'id', 'userId', 'type', 'amount', 'status',
+          'method', 'note', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'userId', 'type', 'amount', 'status',
+          'method', 'note', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.id == transactionId &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.userId == userId &&
+        data.type is string && data.type.size() <= 20 &&
+        (data.type == 'deposit' || data.type == 'withdraw' || data.type == 'bet' || data.type == 'win' || data.type == 'bonus') &&
+        data.amount is number && data.amount > 0 && data.amount <= 10000000 &&
+        data.status is string && data.status.size() <= 20 &&
+        (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected' || data.status == 'completed') &&
+        data.method is string && data.method.size() >= 1 && data.method.size() <= 50 &&
+        data.note is string && data.note.size() >= 1 && data.note.size() <= 300 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidGameCatalogDoc(data, gameId) {
+      return data.keys().hasAll([
+          'id', 'name', 'bengaliName', 'category', 'provider',
+          'image', 'demoLink', 'rtp', 'minBet', 'maxBet',
+          'active', 'authorId', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'bengaliName', 'category', 'provider',
+          'image', 'demoLink', 'rtp', 'minBet', 'maxBet',
+          'active', 'authorId', 'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 &&
+        data.id == gameId &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.bengaliName is string && data.bengaliName.size() >= 1 && data.bengaliName.size() <= 120 &&
+        data.category is string && data.category.size() <= 20 &&
+        (data.category == 'hot' || data.category == 'slots' || data.category == 'fishing' || data.category == 'live' || data.category == 'poker' || data.category == 'lottery' || data.category == 'sports') &&
+        data.provider is string && data.provider.size() >= 1 && data.provider.size() <= 60 &&
+        data.image is string && data.image.size() >= 1 && data.image.size() <= 500 &&
+        data.demoLink is string && data.demoLink.size() >= 1 && data.demoLink.size() <= 500 &&
+        data.rtp is number && data.rtp >= 50 && data.rtp <= 99.9 &&
+        data.minBet is number && data.minBet >= 1 && data.minBet <= 100000 &&
+        data.maxBet is number && data.maxBet >= data.minBet && data.maxBet <= 1000000 &&
+        data.active is bool &&
+        data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminDoc(data, adminId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.uid == adminId &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+        data.createdAt is timestamp;
+    }
+
+    // 4. Collection: /users/{userId}
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedUser() && (existing().uid == request.auth.uid || isAdmin());
+
+      allow create: if isValidId(userId) &&
+        isValidUserProfileDoc(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            isOwner(userId) &&
+            incoming().role == 'player' &&
+            incoming().status == 'active' &&
+            incoming().vipLevel <= 1 &&
+            incoming().vipPoints == 0 &&
+            incoming().balance <= 500 &&
+            incoming().frozenBalance == 0
+          ) ||
+          isAdmin()
+        );
+
+      allow update: if isValidId(userId) &&
+        isValidUserProfileDoc(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            // Action 1: Owner updates profile or atomic wallet balance while active
+            isOwner(userId) &&
+            existing().status == 'active' &&
+            incoming().role == existing().role &&
+            incoming().status == existing().status &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'nickname', 'phone', 'avatar', 'balance', 'frozenBalance', 'vipLevel', 'vipPoints', 'updatedAt'
+            ])
+          ) ||
+          (
+            // Action 2: Admin manages player account, balance, VIP, or status
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'nickname', 'phone', 'avatar', 'role', 'status', 'balance', 'frozenBalance', 'vipLevel', 'vipPoints', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+
+      // Subcollection: /users/{userId}/transactions/{transactionId}
+      match /transactions/{transactionId} {
+        allow get: if isValidId(userId) && isValidId(transactionId) && (isOwner(userId) || isAdmin()) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow list: if isVerifiedUser() && (existing().userId == request.auth.uid || isAdmin());
+
+        allow create: if isValidId(userId) && isValidId(transactionId) &&
+          isValidTransactionDoc(incoming(), userId, transactionId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          (
+            (
+              isOwner(userId) &&
+              get(/databases/$(database)/documents/users/$(userId)).data.status == 'active'
+            ) ||
+            isAdmin()
+          );
+
+        allow update: if isValidId(userId) && isValidId(transactionId) &&
+          isValidTransactionDoc(incoming(), userId, transactionId) &&
+          incoming().id == existing().id &&
+          incoming().userId == existing().userId &&
+          incoming().type == existing().type &&
+          incoming().amount == existing().amount &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          (
+            (
+              // Action 1: Owner cancels/updates only while status is non-terminal ('pending')
+              isOwner(userId) &&
+              existing().status == 'pending' &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['note', 'updatedAt']) &&
+              get(/databases/$(database)/documents/users/$(userId)).data.status == 'active'
+            ) ||
+            (
+              // Action 2: Admin approves or rejects transaction
+              isAdmin() &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'note', 'updatedAt'])
+            )
+          );
+
+        allow delete: if isValidId(userId) && isValidId(transactionId) && isAdmin();
+      }
+    }
+
+    // 5. Collection: /games/{gameId}
+    match /games/{gameId} {
+      allow get: if isValidId(gameId) && (existing().active == true || isAdmin());
+      allow list: if existing().active == true || isAdmin();
+
+      allow create: if isValidId(gameId) &&
+        isAdmin() &&
+        isValidGameCatalogDoc(incoming(), gameId) &&
+        incoming().authorId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidId(gameId) &&
+        isAdmin() &&
+        isValidGameCatalogDoc(incoming(), gameId) &&
+        incoming().id == existing().id &&
+        incoming().authorId == existing().authorId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'bengaliName', 'category', 'provider', 'image', 'demoLink',
+          'rtp', 'minBet', 'maxBet', 'active', 'updatedAt'
+        ]);
+
+      allow delete: if isValidId(gameId) && isAdmin();
+    }
+
+    // 6. Collection: /admins/{adminId}
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isAdmin() && existing().uid is string;
+
+      allow create: if isValidId(adminId) &&
+        isAdmin() &&
+        isValidAdminDoc(incoming(), adminId) &&
+        incoming().createdAt == request.time;
+
+      allow update: if false;
+      allow delete: if isValidId(adminId) && isAdmin();
+    }
+  }
+}

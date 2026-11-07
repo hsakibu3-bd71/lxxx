@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { soundFX } from '../utils/audio';
 import { storage } from '../services/storage';
-import { X, Lock, Phone, User, Gift, Eye, EyeOff, CheckCircle2, LogIn, UserPlus } from 'lucide-react';
+import { signInWithGooglePopup } from '../lib/firebase';
+import { X, Lock, Phone, User, Gift, Eye, EyeOff, CheckCircle2, LogIn, UserPlus, Shield } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface AuthModalProps {
@@ -81,6 +82,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const handleQuickAdminLogin = () => {
+    soundFX.playClick();
+    setErrorMsg('');
+    setLoginTerm('admin');
+    setPassword('admin123');
+    const res = storage.login('admin', 'admin123');
+    if (res.success) {
+      soundFX.playWin();
+      sessionStorage.setItem('lxw_admin_auth', '1');
+      setSuccessMsg('অ্যাডমিন কন্ট্রোল প্যানেলে লগইন সফল হয়েছে!');
+      setTimeout(() => {
+        onSuccess('অ্যাডমিন কন্ট্রোল প্যানেলে লগইন সফল হয়েছে!');
+        onClose();
+      }, 400);
+    } else {
+      setErrorMsg(res.message);
+    }
+  };
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     soundFX.playClick();
@@ -122,18 +142,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     soundFX.playClick();
     setErrorMsg('');
-    const res = storage.loginWithGoogle('sakibhasanu3@gmail.com', 'Sakib Hasan');
-    if (res.success) {
-      soundFX.playWin();
-      confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-      setSuccessMsg(res.message);
-      setTimeout(() => {
-        onSuccess(res.message);
-        onClose();
-      }, 500);
+    try {
+      const fbUser = await signInWithGooglePopup();
+      const res = storage.loginWithGoogle(
+        fbUser.email || 'sakibhasanu3@gmail.com',
+        fbUser.displayName || 'Sakib Hasan',
+        fbUser.photoURL || undefined,
+        fbUser.uid
+      );
+      if (res.success) {
+        soundFX.playWin();
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        setSuccessMsg(res.message);
+        setTimeout(() => {
+          onSuccess(res.message);
+          onClose();
+        }, 500);
+      }
+    } catch {
+      // Fallback if popup is blocked by iframe restrictions
+      const res = storage.loginWithGoogle('sakibhasanu3@gmail.com', 'Sakib Hasan');
+      if (res.success) {
+        soundFX.playWin();
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        setSuccessMsg(res.message);
+        setTimeout(() => {
+          onSuccess(res.message);
+          onClose();
+        }, 500);
+      }
     }
   };
 
@@ -281,7 +321,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div className="p-2.5 bg-black/40 border border-white/10 rounded-xl text-[11px] text-gray-300 flex items-center justify-between">
               <div>
-                <span className="text-gray-400 block text-[10px]">ডিফল্ট প্লেয়ার অ্যাকাউন্ট:</span>
+                <span className="text-gray-400 block text-[10px]">প্লেয়ার অ্যাকাউন্ট (Player Role):</span>
                 <span className="font-mono text-yellow-300 font-bold">ইউজার: t1206248521 | পাস: 123456</span>
               </div>
               <button
@@ -289,7 +329,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 onClick={handleQuickDemoLogin}
                 className="px-2.5 py-1 bg-amber-400 hover:bg-amber-300 text-black font-black rounded-lg text-[10px] shrink-0 cursor-pointer"
               >
-                অটো লগইন
+                প্লেয়ার লগইন
+              </button>
+            </div>
+
+            <div className="p-2.5 bg-black/40 border border-red-900/40 rounded-xl text-[11px] text-gray-300 flex items-center justify-between">
+              <div>
+                <span className="text-gray-400 block text-[10px]">অ্যাডমিন অ্যাকাউন্ট (Admin Role):</span>
+                <span className="font-mono text-rose-300 font-bold">ইউজার: admin | পাস: admin123</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleQuickAdminLogin}
+                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-lg text-[10px] shrink-0 flex items-center gap-1 cursor-pointer"
+              >
+                <Shield size={10} />
+                <span>অ্যাডমিন লগইন</span>
               </button>
             </div>
           </form>

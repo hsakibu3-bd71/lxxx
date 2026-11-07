@@ -1,0 +1,309 @@
+{
+  "entities": {
+    "UserProfileDoc": {
+      "title": "UserProfileDoc",
+      "description": "Player or Admin profile and atomic wallet balance document",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "username": {
+          "type": "string",
+          "description": "Unique player username",
+          "minLength": 3,
+          "maxLength": 50
+        },
+        "nickname": {
+          "type": "string",
+          "description": "Display nickname",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "phone": {
+          "type": "string",
+          "description": "Player phone number (isolated to owner/admin reads)",
+          "minLength": 5,
+          "maxLength": 30
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Avatar image URL",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "role": {
+          "type": "string",
+          "description": "RBAC role",
+          "enum": ["player", "admin"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Account status",
+          "enum": ["active", "banned"]
+        },
+        "vipLevel": {
+          "type": "number",
+          "description": "VIP tier level"
+        },
+        "vipPoints": {
+          "type": "number",
+          "description": "Accumulated VIP points"
+        },
+        "balance": {
+          "type": "number",
+          "description": "Current wallet balance in BDT"
+        },
+        "frozenBalance": {
+          "type": "number",
+          "description": "Frozen wallet balance in BDT"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Wallet currency code",
+          "enum": ["BDT"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "username",
+        "nickname",
+        "phone",
+        "avatar",
+        "role",
+        "status",
+        "vipLevel",
+        "vipPoints",
+        "balance",
+        "frozenBalance",
+        "currency",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TransactionDoc": {
+      "title": "TransactionDoc",
+      "description": "Player wallet transaction record (deposit, withdraw, bet, win, bonus)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Transaction ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "description": "Transaction type",
+          "enum": ["deposit", "withdraw", "bet", "win", "bonus"]
+        },
+        "amount": {
+          "type": "number",
+          "description": "Positive transaction amount in BDT"
+        },
+        "status": {
+          "type": "string",
+          "description": "Lifecycle status of the transaction",
+          "enum": ["pending", "approved", "rejected", "completed"]
+        },
+        "method": {
+          "type": "string",
+          "description": "Payment method or game provider",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "note": {
+          "type": "string",
+          "description": "Transaction description or audit note",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "type",
+        "amount",
+        "status",
+        "method",
+        "note",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "GameCatalogDoc": {
+      "title": "GameCatalogDoc",
+      "description": "Casino game catalog entry with provider, category, demo link, and RTP",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique game slug ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "English game title",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "bengaliName": {
+          "type": "string",
+          "description": "Bengali game title",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "category": {
+          "type": "string",
+          "description": "Game category",
+          "enum": ["hot", "slots", "fishing", "live", "poker", "lottery", "sports"]
+        },
+        "provider": {
+          "type": "string",
+          "description": "Casino game provider name",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "image": {
+          "type": "string",
+          "description": "Game thumbnail URL",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "demoLink": {
+          "type": "string",
+          "description": "Remote game demo/launch URL",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "rtp": {
+          "type": "number",
+          "description": "Return to player percentage"
+        },
+        "minBet": {
+          "type": "number",
+          "description": "Minimum bet in BDT"
+        },
+        "maxBet": {
+          "type": "number",
+          "description": "Maximum bet in BDT"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether game is active in catalog"
+        },
+        "authorId": {
+          "type": "string",
+          "description": "Admin UID who created or updated the game",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "bengaliName",
+        "category",
+        "provider",
+        "image",
+        "demoLink",
+        "rtp",
+        "minBet",
+        "maxBet",
+        "active",
+        "authorId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminDoc": {
+      "title": "AdminDoc",
+      "description": "Trusted admin role assignment record",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Admin Firebase UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified admin email",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfileDoc" },
+      "description": "Player and admin profiles with isolated owner/admin read access and atomic balance tracking"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/TransactionDoc" },
+      "description": "Per-player atomic wallet transaction history (deposits, withdrawals, game bets/wins)"
+    },
+    "/games/{gameId}": {
+      "schema": { "$ref": "#/entities/GameCatalogDoc" },
+      "description": "Publicly readable casino game catalog managed exclusively by verified admins"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminDoc" },
+      "description": "Trusted admin membership registry"
+    }
+  }
+}
