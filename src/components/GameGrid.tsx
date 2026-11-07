@@ -62,7 +62,7 @@ export const GameGrid: React.FC<GameGridProps> = ({ games, onLaunchGame }) => {
                 soundFX.playClick();
                 onLaunchGame(game);
               }}
-              className="group cursor-pointer flex flex-col bg-[#1c0205] rounded-xl overflow-hidden border border-[#4d0910] hover:border-amber-400/80 transition-all duration-200 shadow-md relative select-none"
+              className="group cursor-pointer flex flex-col bg-[#1c0205] rounded-xl overflow-hidden border border-[#4d0910] hover:border-amber-400/90 md:hover:scale-[1.04] hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-[0_0_18px_rgba(251,191,36,0.4)] transition-all duration-300 ease-out shadow-md relative select-none"
             >
               {/* 4 Golden/Red dots on the left border (Exact visual signature from PDF screenshots!) */}
               <div className="absolute left-1 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-10 pointer-events-none opacity-80">

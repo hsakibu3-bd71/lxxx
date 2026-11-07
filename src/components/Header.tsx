@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { soundFX } from '../utils/audio';
-import { X, RefreshCw } from 'lucide-react';
+import { X, RefreshCw, LogOut } from 'lucide-react';
 import { LivexWinLogo } from './LivexWinLogo';
 import { storage } from '../services/storage';
 
@@ -12,6 +12,7 @@ interface HeaderProps {
   onOpenMember: () => void;
   onOpenAppDownload: () => void;
   onOpenAuth: (mode: 'login' | 'register') => void;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMember,
   onOpenAppDownload,
   onOpenAuth,
+  onLogout,
 }) => {
   const [showAppBanner, setShowAppBanner] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -124,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Unregistered [লগইন] [নিবন্ধন] OR Registered User Capsule */}
+        {/* Right: Unregistered [লগইন] [নিবন্ধন] OR Registered User Capsule + Logout */}
         <div className="flex items-center gap-1.5">
           {!user ? (
             <div className="flex items-center gap-1.5">
@@ -151,49 +153,60 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
           ) : (
-            <div
-              onClick={() => {
-                soundFX.playClick();
-                onOpenMember();
-              }}
-              className="flex items-center gap-1.5 cursor-pointer bg-black/40 hover:bg-black/60 py-0.5 px-2 rounded-full border border-red-900/60"
-            >
-              {/* Avatar */}
-              <div className="w-7 h-7 rounded-full overflow-hidden border border-yellow-400 shrink-0">
-                <img
-                  src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                />
-              </div>
+            <div className="flex items-center gap-1.5">
+              <div
+                onClick={() => {
+                  soundFX.playClick();
+                  onOpenMember();
+                }}
+                className="flex items-center gap-1.5 cursor-pointer bg-black/40 hover:bg-black/60 py-0.5 px-2 rounded-full border border-red-900/60"
+              >
+                {/* Avatar */}
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-yellow-400 shrink-0">
+                  <img
+                    src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
 
-              {/* User ID & Balance */}
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[11px] font-bold text-white font-mono tracking-tight">
-                  {user.username}
-                </span>
-                <div className="flex items-center gap-1">
-                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                  <span className="text-[11px] font-bold text-yellow-300 font-num">
-                    {user.wallet.balance.toFixed(2)}
+                {/* User ID & Balance */}
+                <div className="flex flex-col text-left leading-tight">
+                  <span className="text-[11px] font-bold text-white font-mono tracking-tight">
+                    {user.username}
                   </span>
-                  <button
-                    onClick={handleRefresh}
-                    className="text-gray-300 hover:text-white ml-0.5 cursor-pointer"
-                    title="ব্যালেন্স রিফ্রেশ"
-                  >
-                    <RefreshCw
-                      size={10}
-                      className={isRefreshing ? 'animate-spin text-yellow-400' : ''}
-                    />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+                    <span className="text-[11px] font-bold text-yellow-300 font-num">
+                      {user.wallet.balance.toFixed(2)}
+                    </span>
+                    <button
+                      onClick={handleRefresh}
+                      className="text-gray-300 hover:text-white ml-0.5 cursor-pointer"
+                      title="ব্যালেন্স রিফ্রেশ"
+                    >
+                      <RefreshCw
+                        size={10}
+                        className={isRefreshing ? 'animate-spin text-yellow-400' : ''}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Bangladesh Flag Badge */}
-              <div className="w-4 h-4 rounded-full bg-[#006a4e] flex items-center justify-center border border-black shadow-xs shrink-0 ml-0.5">
-                <div className="w-2 h-2 rounded-full bg-[#f42a41]" />
-              </div>
+              {/* Direct Logout Button */}
+              {onLogout && (
+                <button
+                  onClick={() => {
+                    soundFX.playClick();
+                    onLogout();
+                  }}
+                  className="p-1.5 rounded-full bg-red-950/80 hover:bg-red-800 text-red-200 hover:text-white border border-red-700/60 shadow transition-colors cursor-pointer"
+                  title="লগআউট করুন (Logout)"
+                >
+                  <LogOut size={13} />
+                </button>
+              )}
             </div>
           )}
         </div>

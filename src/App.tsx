@@ -33,7 +33,7 @@ import { HappyFishingGame } from './components/games/HappyFishingGame';
 import { TeenPattiGame } from './components/games/TeenPattiGame';
 import { LiveCasinoGame } from './components/games/LiveCasinoGame';
 
-import { Smartphone, Monitor, Shield } from 'lucide-react';
+import { Smartphone, Monitor } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => storage.getCurrentUser());
@@ -229,19 +229,6 @@ export default function App() {
               <span>কম্পিউটার ভিউ (Wide Screen)</span>
             </button>
           </div>
-          <a
-            href="#admin"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.hash = 'admin';
-              setIsAdminRoute(true);
-            }}
-            className="px-2.5 py-1 rounded-lg bg-black/60 hover:bg-red-950/60 border border-red-900/50 text-gray-400 hover:text-amber-300 font-bold flex items-center gap-1 transition-colors"
-            title="Separated Admin Portal (/admin)"
-          >
-            <Shield size={12} />
-            <span>Admin Portal</span>
-          </a>
         </div>
       </div>
 
@@ -253,7 +240,7 @@ export default function App() {
             : 'max-w-5xl bg-[#160103] shadow-2xl border-x border-[#3a060b]'
         }`}
       >
-        {/* 1. Header (Clean Player Header: [লগইন] / [নিবন্ধন] when logged out, Profile Capsule when logged in, NO Admin or Logout button on Home Page) */}
+        {/* 1. Header (Clean Player Header: [লগইন] / [নিবন্ধন] when logged out, Profile Capsule + Logout when logged in, NO Admin button on Home Page) */}
         <Header
           user={currentUser}
           onRefreshBalance={refreshUser}
@@ -261,6 +248,7 @@ export default function App() {
           onOpenMember={() => requireAuth(() => setIsMemberOpen(true))}
           onOpenAppDownload={() => setIsAndroidAppOpen(true)}
           onOpenAuth={(mode) => openAuthModal(mode)}
+          onLogout={handleLogout}
         />
 
         {/* Main Viewport Content based on Active Bottom Tab */}
